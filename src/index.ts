@@ -8,26 +8,26 @@ const UUID_NULL = '00000000-0000-0000-0000-000000000000';
 
 const UUID_NAMESPACE = uuidv5(SIGN, UUID_NULL);
 
-type PlainPrimitive = undefined | null | string | number | boolean;
+export type PlainPrimitive = undefined | null | string | number | boolean;
 
-type PlainObject = {[k in string]?: PlainValue};
+export type PlainObject = {[k in string]?: PlainValue};
 
-type PlainArray = PlainValue[];
+export type PlainArray = PlainValue[];
 
-type PlainValue = PlainPrimitive | PlainObject | PlainArray;
+export type PlainValue = PlainPrimitive | PlainObject | PlainArray;
 
-type Option = {
+export type Option = {
     async?: boolean;
     uniq?: boolean;
 };
 
-type AsyncOption = Option & {
+export type AsyncOption = Option & {
     async: true;
 };
 
-type Payload = Error | PlainValue;
+export type Payload = Error | PlainValue;
 
-type SyncMeta = {
+export type SyncMeta = {
     sign: typeof SIGN;
     id: string;
     pid?: string;
@@ -37,7 +37,7 @@ type SyncMeta = {
     uniq: boolean;
 };
 
-type AsyncMeta = {
+export type AsyncMeta = {
     sign: typeof SIGN;
     id: string;
     pid?: string;
@@ -49,9 +49,9 @@ type AsyncMeta = {
     uniq: boolean;
 };
 
-type Meta<O> = O extends AsyncOption ? AsyncMeta : SyncMeta;
+export type Meta<O> = O extends AsyncOption ? AsyncMeta : SyncMeta;
 
-type Action<O, P> = {
+export type Action<O, P> = {
     type: string;
     error: boolean;
     payload?: P extends Error ? Error : PlainValue;
