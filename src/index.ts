@@ -49,9 +49,9 @@ export type AsyncMeta = {
     uniq: boolean;
 };
 
-export type Meta<O> = O extends AsyncOption ? AsyncMeta : SyncMeta;
+export type Meta<O = Option> = O extends AsyncOption ? AsyncMeta : SyncMeta;
 
-export type Action<O, P> = {
+export type Action<O = Option, P = Payload> = {
     type: string;
     error: boolean;
     payload?: P extends Error ? Error : PlainValue;
@@ -71,7 +71,7 @@ const MetaRequiredProperties = ['sign', 'id', 'ctime', 'async', 'uniq'];
 const invalidAction = (action: unknown) => `Invalid Action. ${JSON.stringify(action)}! <redux-saga-mate>`;
 const invalidAsyncAction = (action: unknown) => `Invalid Async Action. ${JSON.stringify(action)}! <redux-saga-mate>`;
 
-export const isValidAction = (action: any): boolean => {
+export const isValidAction = (action: unknown): boolean => {
     if (!isPlainObject(action)) {
         return false;
     }

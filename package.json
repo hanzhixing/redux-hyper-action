@@ -1,6 +1,6 @@
 {
   "name": "redux-hyper-action",
-  "version": "v1.0.1",
+  "version": "v1.0.3",
   "description": "Human friendly enhanced redux action shape.",
   "keywords": [
     "react",
