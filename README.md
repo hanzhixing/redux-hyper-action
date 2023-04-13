@@ -17,65 +17,74 @@ $ npm install --save redux-hyper-action
 ## Motivation
 Prudently extends the `meta` property of [Flux Standard Action](https://github.com/redux-utilities/flux-standard-action).
 
-## Additional Convention
-**`Action Instance` = `Action Type` + `Action Payload`**
+## Convention
+**`Action Instance` = `Action Type` + `Action Payload` + `(Optional)Action Time`**
 
 **`Action Id` = generateActionId(`Action Instance)`**
 
 ## Actions
 Totally compatible with [Flux Standard Action](https://github.com/redux-utilities/flux-standard-action).
 
-### meta.sign
+> type: string
+> error: boolean
+> payload: PlainValue (**SHOULD NOT** be `Error`)
+> meta: (See `Meta` below)
+
+``` typescript
+type PlainPrimitive = undefined | null | string | number | boolean;
+type PlainObject = {[k in string]?: PlainValue};
+type PlainArray = PlainValue[];
+type PlainValue = PlainPrimitive | PlainObject | PlainArray;
+```
+
+## Meta
+
+### sign
 Always has a `string` value `redux-hyper-action`.
 
-It's important to distinguish `Redux Hyper Action`s from others.
+It's used to distinguish `Redux Hyper Action`s from others.
 
-### meta.id
-A UUID string. See `Convention` above.
+### id
+A UUID string.
 
-### meta.pid
-Optional. A UUID string, but parent's.
+See `Convention` above.
 
-### meta.phase
+### pid
+Optional.
 
-**`started` | `running` | `finish`**
+A UUID string, but parent's.
 
-### meta.progress
+### phase
+Async actions only.
+
+`started` | `finished`
+
+### progress
+Async actions only.
+
 Integer between 0-100.
 
-### meta.ctime
+### ctime
 Create time in ISO string.
 
-### meta.utime
-Optional. Update time in ISO string.
+### utime
+Optional.
 
-### meta.async
+Update time in ISO string.
+
+### async
 Boolean.
 
-### meta.uniq
+### uniq
 Boolean.
 
 ## Utility functions
-```javascript
-import {
-    isValidAction,
-    createActionId,
-    createAction,
-    createAsyncAction,
-    createAsyncUniqueAction,
-    idOfAction,
-    pidOfAction,
-    isAsync,
-    isUnique,
-    isStarted,
-    isRunning,
-    isFinished,
-    continueWith,
-    succeedWith,
-    failWith,
-    makeChildOf,
-    isChildOf,
-} from 'redux-hyper-action';
+Usage example:
+
+``` javascript
+import {isValidAction} from 'redux-hyper-action';
+
+isValidAction({type: 'foo', payload: 'bar'})); // false
 ```
 
 ### isValidAction
@@ -126,6 +135,10 @@ import {
 
 > (action: Action) => boolean
 
+### hasError
+
+> (action: Action) => boolean
+
 ### continueWith
 
 > (payload: Payload, progress?: number) => (action: Action) => Action
@@ -145,3 +158,48 @@ import {
 ### isChildOf
 
 > (parent: Action) => (child: Action) => boolean
+
+## Exception compare to `Flux Standard Action`
+There is one exception for error handling (but not a conflict).
+
+The `payload` field can't be an `Error` anyway, while keeping `error` field `boolean` type.
+
+Reason:
+
+- [Write Actions Using the Flux Standard Action Convention](https://redux.js.org/style-guide/#write-actions-using-the-flux-standard-action-convention)
+- [Do Not Put Non-Serializable Values in State or Actions](https://redux.js.org/style-guide/#do-not-put-non-serializable-values-in-state-or-actions)
+
+There is only one way to create an action indicating `Error` using `redux-hyper-action`.
+
+``` javascript
+import {createAsyncAction, failWith} from 'redux-hyper-action';
+
+const action = createAsyncAction('type', 'payload');
+
+const actionHasError = failWith('any contents');
+```
+
+What about sync actions created by `createAction`?
+
+Sync actions do not have their own transitional state, so they can not be updated.
+If you want, just fill the payload field with any data describing the "error", and create branch new action with `createAction`.
+
+## Why not *_REQUEST, *_SUCCESS, *_FAILURE?
+In the past, redux actions in this form were used to describe transient async process, which triggered by user interactions.
+
+But think about this,
+
+> How many interactions were happened when the user clicked on a button?
+
+In fact, from the user's point of view, the transient async progress is behind the scenes process.
+
+In other words, tracking these states is implemetation detail of the system under the UI layer.
+
+But most of the time, we are using multiple actions to describe single user event, although not all.
+
+For the consistency of mental models with actual user interacitons, `redux-hyper-action` chooses single action object to describing that transient async process.
+
+It will be easier and more natural to understand action manipulations in the UI layer in this way.
+
+## License
+[MIT licensed](./LICENSE).

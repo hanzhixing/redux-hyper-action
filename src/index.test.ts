@@ -11,8 +11,8 @@ import {
     isAsync,
     isUnique,
     isStarted,
-    isRunning,
     isFinished,
+    hasError,
     continueWith,
     succeedWith,
     failWith,
@@ -23,8 +23,7 @@ import {
 const SIGN = 'redux-hyper-action';
 
 const PHASE_STARTED = 'started';
-const PHASE_RUNNING = 'running';
-const PHASE_FINISH = 'finish';
+const PHASE_FINISH = 'finished';
 
 const REGEX_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REGEX_ISO8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -283,9 +282,9 @@ describe('pidOfAction', () => {
 });
 
 describe('isAsync', () => {
-    it('should throw error if the action is not valid', () => {
+    it('should return false if the action is not valid', () => {
         const action = createAction('type');
-        expect(() => isAsync(assocPath(['foo'], 'bar', action))).toThrow();
+        expect(isAsync(assocPath(['foo'], 'bar', action))).toBe(false);
     });
 
     it('should return correct boolean values for corresponding actions', () => {
@@ -295,9 +294,9 @@ describe('isAsync', () => {
 });
 
 describe('isUnique', () => {
-    it('should throw error if the action is not valid', () => {
+    it('should return false if the action is not valid', () => {
         const action = createAction('type');
-        expect(() => isUnique(assocPath(['foo'], 'bar', action))).toThrow();
+        expect(isUnique(assocPath(['foo'], 'bar', action))).toBe(false);
     });
 
     it('should return correct boolean values for corresponding actions', () => {
@@ -309,16 +308,21 @@ describe('isUnique', () => {
 describe('isStarted', () => {
     const action = createAsyncAction('type', 'payload');
 
-    it('should throw error if the action is an async action', () => {
-        expect(() => isStarted(createAction('type'))).toThrow();
+    it('should return false if the action is not valid', () => {
+        const action = createAction('type');
+        // eslint-disable-next-line
+        // @ts-ignore
+        expect(isStarted(assocPath(['foo'], 'bar', action))).toBe(false);
+    });
+
+    it('should return false if the action is not an async action', () => {
+        // eslint-disable-next-line
+        // @ts-ignore
+        expect(isStarted(createAction('type'))).toBe(false);
     });
 
     it('should be TRUE if the action is branch new', () => {
         expect(isStarted(action)).toBe(true);
-    });
-
-    it('should be FALSE if the action is continued', () => {
-        expect(isStarted(continueWith('success')(action))).toBe(false);
     });
 
     it('should be FALSE if the action is succeed', () => {
@@ -326,39 +330,24 @@ describe('isStarted', () => {
     });
 
     it('should be FALSE if the action is failed', () => {
-        expect(isStarted(failWith(new Error('failed'))(action))).toBe(false);
-    });
-});
-
-describe('isRunning', () => {
-    const action = createAsyncAction('type', 'payload');
-
-    it('should throw error if the action is an async action', () => {
-        expect(() => isRunning(createAction('type'))).toThrow();
-    });
-
-    it('should be FALSE if the action is branch new', () => {
-        expect(isRunning(action)).toBe(false);
-    });
-
-    it('should be TRUE if the action is continued', () => {
-        expect(isRunning(continueWith('continue')(action))).toBe(true);
-    });
-
-    it('should be FALSE if the action is succeed', () => {
-        expect(isRunning(succeedWith('success')(action))).toBe(false);
-    });
-
-    it('should be FALSE if the action is failed', () => {
-        expect(isStarted(failWith(new Error('error'))(action))).toBe(false);
+        expect(isStarted(failWith('failed')(action))).toBe(false);
     });
 });
 
 describe('isFinished', () => {
     const action = createAsyncAction('type', 'payload');
 
-    it('should throw error if the action is an async action', () => {
-        expect(() => isFinished(createAction('type'))).toThrow();
+    it('should return false if the action is not valid', () => {
+        const action = createAction('type');
+        // eslint-disable-next-line
+        // @ts-ignore
+        expect(isFinished(assocPath(['foo'], 'bar', action))).toBe(false);
+    });
+
+    it('should return false if the action is not an async action', () => {
+        // eslint-disable-next-line
+        // @ts-ignore
+        expect(isFinished(createAction('type'))).toBe(false);
     });
 
     it('should be FALSE if the action is branch new', () => {
@@ -374,7 +363,40 @@ describe('isFinished', () => {
     });
 
     it('should be TRUE if the action is failed', () => {
-        expect(isFinished(failWith(new Error('error'))(action))).toBe(true);
+        expect(isFinished(failWith('error')(action))).toBe(true);
+    });
+});
+
+describe('hasError', () => {
+    const action = createAsyncAction('type', 'payload');
+
+    it('should return false if the action is not valid', () => {
+        const action = createAction('type');
+        // eslint-disable-next-line
+        // @ts-ignore
+        expect(hasError(assocPath(['foo'], 'bar', action))).toBe(false);
+    });
+
+    it('should return false if the action is not an async action', () => {
+        // eslint-disable-next-line
+        // @ts-ignore
+        expect(hasError(createAction('type'))).toBe(false);
+    });
+
+    it('should be FALSE if the action is branch new', () => {
+        expect(hasError(action)).toBe(false);
+    });
+
+    it('should be FALSE if the action is continued', () => {
+        expect(hasError(continueWith('continue')(action))).toBe(false);
+    });
+
+    it('should be FALSE if the action is succeed', () => {
+        expect(hasError(succeedWith('success')(action))).toBe(false);
+    });
+
+    it('should be TRUE if the action is failed', () => {
+        expect(hasError(failWith('error')(action))).toBe(true);
     });
 });
 
@@ -389,13 +411,14 @@ describe('continueWith', () => {
         payload,
         meta: {
             ...action.meta,
-            phase: PHASE_RUNNING,
             progress: 50,
             utime: expect.stringMatching(REGEX_ISO8601),
         },
     };
 
-    it('should throw error if the action is an async action', () => {
+    it('should throw error if the action is not an async action', () => {
+        // eslint-disable-next-line
+        // @ts-ignore
         expect(() => continueWith(payload, 50)(createAction('type', 'payload'))).toThrow();
     });
 
@@ -426,7 +449,9 @@ describe('succeedWith', () => {
         },
     };
 
-    it('should throw error if the action is an async action', () => {
+    it('should throw error if the action is not an async action', () => {
+        // eslint-disable-next-line
+        // @ts-ignore
         expect(() => succeedWith(payload)(createAction('type', 'payload'))).toThrow();
     });
 
@@ -443,7 +468,7 @@ describe('succeedWith', () => {
 describe('failWith', () => {
     const action = createAsyncAction('type', 'payload');
 
-    const error = new Error('success');
+    const error = 'error';
 
     const desired = {
         ...action,
@@ -459,6 +484,8 @@ describe('failWith', () => {
     };
 
     it('should throw error if the action is an async action', () => {
+        // eslint-disable-next-line
+        // @ts-ignore
         expect(() => failWith(error)(createAction('type', 'payload'))).toThrow();
     });
 

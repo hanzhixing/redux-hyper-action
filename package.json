@@ -22,7 +22,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm run clean && tsc",
+    "build": "npm run clean && tsc --project tsconfig.build.json",
     "clean": "rimraf dist coverage",
     "test": "jest --coverage --coverageReporters=text-lcov | coveralls",
     "test:local": "jest --coverage"

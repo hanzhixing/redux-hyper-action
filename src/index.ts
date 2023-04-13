@@ -9,23 +9,24 @@ const UUID_NULL = '00000000-0000-0000-0000-000000000000';
 const UUID_NAMESPACE = uuidv5(SIGN, UUID_NULL);
 
 export type PlainPrimitive = undefined | null | string | number | boolean;
-
 export type PlainObject = {[k in string]?: PlainValue};
-
 export type PlainArray = PlainValue[];
-
 export type PlainValue = PlainPrimitive | PlainObject | PlainArray;
 
-export type Option = {
+export type LooseOption = {
     async?: boolean;
     uniq?: boolean;
 };
 
-export type AsyncOption = Option & {
+export type AsyncOption = LooseOption & {
     async: true;
 };
 
-export type Payload = Error | PlainValue;
+export type Option = AsyncOption | LooseOption;
+
+export type Payload = PlainValue;
+
+export type Phase = 'started' | 'finished';
 
 export type SyncMeta = {
     sign: typeof SIGN;
@@ -41,7 +42,7 @@ export type AsyncMeta = {
     sign: typeof SIGN;
     id: string;
     pid?: string;
-    phase: typeof PHASE_STARTED | typeof PHASE_RUNNING | typeof PHASE_FINISH;
+    phase: Phase;
     progress: number;
     ctime: string;
     utime?: string;
@@ -49,18 +50,21 @@ export type AsyncMeta = {
     uniq: boolean;
 };
 
-export type Meta<O = Option> = O extends AsyncOption ? AsyncMeta : SyncMeta;
+export type Meta = SyncMeta | AsyncMeta;
 
-export type Action<O = Option, P = Payload> = {
-    type: string;
-    error: boolean;
-    payload?: P extends Error ? Error : PlainValue;
-    meta: Meta<O>;
+export type Action<T extends string, P extends Payload = undefined, M extends Meta = SyncMeta> = {
+     type: T;
+     error: boolean;
+     payload: P;
+     meta: M;
 };
 
-const PHASE_STARTED = 'started';
-const PHASE_RUNNING = 'running';
-const PHASE_FINISH = 'finish';
+export type AsyncAction<
+    T extends string = string,
+    P extends Payload = undefined,
+> = Action<T, P, AsyncMeta>;
+
+export type HyperAction<T extends string, P extends Payload> = Action<T, P, Meta>;
 
 const ActionProperties = ['type', 'payload', 'error', 'meta'];
 const ActionRequiredProperties = ['type', 'error', 'meta'];
@@ -68,10 +72,17 @@ const ActionRequiredProperties = ['type', 'error', 'meta'];
 const MetaProperties = ['sign', 'id', 'pid', 'phase', 'progress', 'ctime', 'utime', 'async', 'uniq'];
 const MetaRequiredProperties = ['sign', 'id', 'ctime', 'async', 'uniq'];
 
-const invalidAction = (action: unknown) => `Invalid Action. ${JSON.stringify(action)}! <redux-saga-mate>`;
-const invalidAsyncAction = (action: unknown) => `Invalid Async Action. ${JSON.stringify(action)}! <redux-saga-mate>`;
+const invalidAction = (action: unknown) => (
+    `Invalid Redux Hyper Action. ${JSON.stringify(action)}! <redux-saga-mate>`
+);
+const invalidAsyncAction = (action: unknown) => (
+    `Invalid Async Redux Hyper Action. ${JSON.stringify(action)}! <redux-saga-mate>`
+);
 
-export const isValidAction = (action: unknown): boolean => {
+export const isValidAction = <
+    T extends string = string,
+    P extends Payload = undefined,
+>(action: unknown): action is Action<T, P, Meta> => {
     if (!isPlainObject(action)) {
         return false;
     }
@@ -103,15 +114,27 @@ export const isValidAction = (action: unknown): boolean => {
     return action.meta.sign === SIGN;
 };
 
-export const createActionId = (type: string, payload: Payload = undefined, uniq = false): string => (
+export const createActionId = (type: string, payload: Payload = undefined, uniq = false) => (
     uniq ? uuidv4() : uuidv5(stringify([type, payload]), UUID_NAMESPACE)
 );
 
-export const createAction = <O extends Option, P extends Payload>(
-    type: string,
+export function createAction<T extends string>(
+    type: T,
+): Action<T, undefined, SyncMeta>;
+export function createAction<T extends string, P extends Payload>(
+    type: T,
+    payload: P,
+): Action<T, P, SyncMeta>;
+export function createAction<T extends string, P extends Payload, O extends Option>(
+    type: T,
+    payload: P,
+    option: O
+): Action<T, P, O extends AsyncOption ? AsyncMeta : SyncMeta>;
+export function createAction<T extends string, P extends Payload, O extends Option>(
+    type: T,
     payload?: P,
     option?: O,
-): Action<O, P> => {
+) {
     const async = !!option?.async;
     const uniq = !!option?.uniq;
 
@@ -119,38 +142,58 @@ export const createAction = <O extends Option, P extends Payload>(
         sign: SIGN,
         id: createActionId(type, payload, uniq),
         pid: undefined,
-        phase: PHASE_STARTED,
+        phase: 'started',
         progress: 0,
         ctime: (new Date()).toISOString(),
         utime: undefined,
         async,
         uniq,
-    } : {
+    } as AsyncMeta : {
         sign: SIGN,
         id: createActionId(type, payload),
         pid: undefined,
         ctime: (new Date()).toISOString(),
         async,
         uniq,
-    };
+    } as SyncMeta;
 
     return {
         type,
         payload,
-        error: payload instanceof Error,
+        error: false,
         meta,
-    } as Action<O, P>;
-};
+    } as Action <T, P, O extends AsyncOption ? AsyncMeta : SyncMeta>;
+}
 
-export const createAsyncAction = <P extends Payload>(type: string, payload?: P): Action<AsyncOption, P> => (
-    createAction(type, payload, {async: true, uniq: false})
-);
+export function createAsyncAction<T extends string>(
+    type: T,
+): Action<T, undefined, AsyncMeta>;
+export function createAsyncAction<T extends string, P extends Payload>(
+    type: T,
+    payload: P,
+): Action<T, P, AsyncMeta>;
+export function createAsyncAction<T extends string, P extends Payload>(
+    type: T,
+    payload?: P,
+) {
+    return createAction(type, payload, {async: true, uniq: false}) as Action<T, P, AsyncMeta>;
+}
 
-export const createAsyncUniqueAction = <P extends Payload>(type: string, payload?: P): Action<AsyncOption, P> => (
-    createAction(type, payload, {async: true, uniq: true})
-);
+export function createAsyncUniqueAction<T extends string>(
+    type: T,
+): Action<T, undefined, AsyncMeta>;
+export function createAsyncUniqueAction<T extends string, P extends Payload>(
+    type: T,
+    payload: P,
+): Action<T, P, AsyncMeta>;
+export function createAsyncUniqueAction<T extends string, P extends Payload>(
+    type: T,
+    payload?: P,
+) {
+    return createAction(type, payload, {async: true, uniq: true}) as Action<T, P, AsyncMeta>
+}
 
-export const idOfAction = (action: Action<Option, Payload>) => {
+export const idOfAction = <T extends string, P extends Payload>(action: HyperAction<T, P>) => {
     if (!isValidAction(action)) {
         throw new Error(invalidAction(action));
     }
@@ -158,7 +201,7 @@ export const idOfAction = (action: Action<Option, Payload>) => {
     return action.meta.id;
 };
 
-export const pidOfAction = (action: Action<Option, Payload>) => {
+export const pidOfAction = <T extends string, P extends Payload>(action: HyperAction<T, P>) => {
     if (!isValidAction(action)) {
         throw new Error(invalidAction(action));
     }
@@ -166,94 +209,97 @@ export const pidOfAction = (action: Action<Option, Payload>) => {
     return action.meta.pid;
 };
 
-export const isAsync = (action: Action<Option, Payload>) => {
+export const isAsync = <T extends string, P extends Payload>(
+    action: Action<T, P, Meta>,
+): action is AsyncAction<T, P> => {
     if (!isValidAction(action)) {
-        throw new Error(invalidAction(action));
+        return false;
     }
 
     return action.meta.async;
 };
 
-export const isUnique = (action: Action<Option, Payload>) => {
+export const isUnique = <T extends string, P extends Payload>(action: HyperAction<T, P>) => {
     if (!isValidAction(action)) {
-        throw new Error(invalidAction(action));
+        return false;
     }
 
     return action.meta.uniq;
 };
 
-export const isStarted = (action: Action<AsyncOption, Payload>) => {
+export const isStarted = <T extends string, P extends Payload>(action: AsyncAction<T, P>) => {
     if (!isAsync(action)) {
-        throw new Error(invalidAsyncAction(action));
+        return false;
     }
 
-    return action.meta.phase === PHASE_STARTED;
+    return action.meta.phase === 'started';
 };
 
-export const isRunning = (action: Action<AsyncOption, Payload>) => {
+export const isFinished = <T extends string, P extends Payload>(action: AsyncAction<T, P>) => {
     if (!isAsync(action)) {
-        throw new Error(invalidAsyncAction(action));
+        return false;
     }
 
-    return action.meta.phase === PHASE_RUNNING;
+    return action.meta.phase === 'finished';
 };
 
-export const isFinished = (action: Action<AsyncOption, Payload>) => {
+export const hasError = <T extends string, P extends Payload>(action: AsyncAction<T, P>) => {
     if (!isAsync(action)) {
-        throw new Error(invalidAsyncAction(action));
+        return false;
     }
 
-    return action.meta.phase === PHASE_FINISH;
+    return action.error;
 };
 
-export const continueWith = (
-    payload: PlainValue,
+export const continueWith = <P extends PlainValue>(
+    payload: P,
     progress = 0,
-) => (
-    action: Action<AsyncOption, Payload>,
-): Action<AsyncOption, PlainValue> => {
+) => <T extends string, X extends Payload>(
+    action: AsyncAction<T, X>,
+) => {
     if (!isAsync(action)) {
         throw new Error(invalidAsyncAction(action));
     }
 
     return {
         ...action,
+        error: false,
         payload,
         meta: {
             ...action.meta,
-            phase: PHASE_RUNNING,
             progress,
             utime: (new Date()).toISOString(),
         },
-    };
+    } as AsyncAction<T, P>;
 };
 
-export const succeedWith = (
-    payload: PlainValue,
-) => (
-    action: Action<AsyncOption, Payload>,
-): Action<AsyncOption, PlainValue> => {
+export const succeedWith = <P extends PlainValue>(
+    payload: P,
+) => <T extends string, X extends Payload>(
+    action: AsyncAction<T, X>,
+) => {
     if (!isAsync(action)) {
         throw new Error(invalidAsyncAction(action));
     }
 
     return {
         ...action,
+        error: false,
         payload,
         meta: {
             ...action.meta,
-            phase: PHASE_FINISH,
+            phase: 'finished',
             progress: 100,
             utime: (new Date()).toISOString(),
         },
-    };
+    } as AsyncAction<T, P>;
 };
 
-export const failWith = (
-    error: Error,
-) => (
-    action: Action<AsyncOption, Payload>,
-): Action<AsyncOption, Error> => {
+export const failWith = <E extends Payload>(
+    error: E,
+) => <T extends string, X extends Payload>(
+    action: AsyncAction<T, X>,
+) => {
     if (!isAsync(action)) {
         throw new Error(invalidAsyncAction(action));
     }
@@ -264,18 +310,23 @@ export const failWith = (
         error: true,
         meta: {
             ...action.meta,
-            phase: PHASE_FINISH,
+            phase: 'finished',
             progress: 100,
             utime: (new Date()).toISOString(),
         },
-    };
+    } as AsyncAction<T, E>;
 };
 
-export const makeChildOf = (
-    parent: Action<Option, Payload>,
+export const makeChildOf = <
+    PT extends string,
+    PP extends Payload,
+    CT extends string,
+    CP extends Payload,
+>(
+    parent: HyperAction<PT, PP>,
 ) => (
-    child: Action<Option, Payload>,
-): Action<Option, Payload> => {
+    child: HyperAction<CT, CP>,
+) => {
     if (!isValidAction(parent) || !isValidAction(child)) {
         throw new Error(invalidAction({parent, child}));
     }
@@ -287,14 +338,19 @@ export const makeChildOf = (
             pid: idOfAction(parent),
             utime: (new Date()).toISOString(),
         },
-    };
+    } as HyperAction<CT, CP>;
 };
 
-export const isChildOf = (
-    parent: Action<Option, Payload>,
+export const isChildOf = <
+    PT extends string,
+    PP extends Payload,
+    CT extends string,
+    CP extends Payload,
+>(
+    parent: HyperAction<PT, PP>,
 ) => (
-    child: Action<Option, Payload>,
-): boolean => {
+    child: HyperAction<CT, CP>,
+) => {
     if (!isValidAction(parent) || !isValidAction(child)) {
         throw new Error(invalidAction({parent, child}));
     }
