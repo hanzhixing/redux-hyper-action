@@ -1,4 +1,4 @@
-import {isPlainObject} from 'is-plain-object';
+import {isPlainObjectShallow, PlainValue} from 'plainp';
 import stringify from 'fast-json-stable-stringify';
 import {v4 as uuidv4, v5 as uuidv5} from 'uuid';
 
@@ -7,11 +7,6 @@ const SIGN = 'redux-hyper-action';
 const UUID_NULL = '00000000-0000-0000-0000-000000000000';
 
 const UUID_NAMESPACE = uuidv5(SIGN, UUID_NULL);
-
-export type PlainPrimitive = undefined | null | string | number | boolean;
-export type PlainObject = {[k in string]?: PlainValue};
-export type PlainArray = PlainValue[];
-export type PlainValue = PlainPrimitive | PlainObject | PlainArray;
 
 export type LooseOption = {
     async?: boolean;
@@ -83,7 +78,7 @@ export const isValidAction = <
     T extends string = string,
     P extends Payload = undefined,
 >(action: unknown): action is Action<T, P, Meta> => {
-    if (!isPlainObject(action)) {
+    if (!isPlainObjectShallow(action)) {
         return false;
     }
 
@@ -95,23 +90,29 @@ export const isValidAction = <
         return false;
     }
 
-    if (typeof action.type !== 'string') {
+    const {type, error, meta} = action;
+
+    if (typeof type !== 'string') {
         return false;
     }
 
-    if (!isPlainObject(action.meta)) {
+    if (typeof error !== 'boolean') {
         return false;
     }
 
-    if (!MetaRequiredProperties.every(k => k in action.meta)) {
+    if (!isPlainObjectShallow(meta)) {
         return false;
     }
 
-    if (!Object.keys(action.meta).every(k => MetaProperties.includes(k))) {
+    if (!MetaRequiredProperties.every(k => k in meta)) {
         return false;
     }
 
-    return action.meta.sign === SIGN;
+    if (!Object.keys(meta).every(k => MetaProperties.includes(k))) {
+        return false;
+    }
+
+    return meta.sign === SIGN;
 };
 
 export const createActionId = (type: string, payload: Payload = undefined, uniq = false) => (

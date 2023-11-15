@@ -30,6 +30,7 @@
   "dependencies": {
     "fast-json-stable-stringify": "^2.1.0",
     "is-plain-object": "^5.0.0",
+    "plainp": "file:../plainp",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

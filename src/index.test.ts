@@ -93,6 +93,20 @@ describe('isValidAction', () => {
         });
     });
 
+    it('should return FALSE if the action error is not boolean.', () => {
+        [
+            1,
+            undefined,
+            null,
+            [],
+            noop,
+            new Foo(),
+            /regex/,
+        ].forEach(v => {
+            expect(isValidAction(assocPath(['error'], v, validAction))).toBe(false);
+        });
+    });
+
     it('should return FALSE if the meta is not plain object.', () => {
         [
             'string',
